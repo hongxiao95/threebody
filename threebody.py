@@ -111,7 +111,7 @@ class MultiBody:
         # 模版画面
         tpl_img = np.zeros((height, width, 3), dtype=np.uint8)
         p_count = len(self.mps)
-        fourcc = cv2.VideoWriter.fourcc(*"H264")
+        fourcc = cv2.VideoWriter.fourcc(*"avc1")
         video_witer = cv2.VideoWriter(f"{self.video_dir}{os.sep}{file_name}.mp4",fourcc=fourcc,fps=30,frameSize=(width, height))
         for i in range(self.history_count):
             print(f"正在写入{file_name}第{i}帧\r", end="")
@@ -147,7 +147,6 @@ class MultiBody:
                     tail_i -= 1
                     
             video_witer.write(current_img)
-
         video_witer.release()
         print("写入完成")
 
