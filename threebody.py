@@ -140,7 +140,7 @@ class MultiBody:
                 
                 cv2.circle(current_img, (canvas_pos), radius=8, color=self.colors[j % len(self.colors)], thickness=-1)
                 tail_i = i - 1
-                while (tail_i >= 0 or self.current_round >= self.history_count) and i - tail_i - 1 < max_tail:
+                while tail_i >= 0 and i - tail_i - 1 < max_tail:
                     canvas_pos = self._calc_canvas_pos(self.historys[j][tail_i], ori_opoint, div_times, width, height)
                     if self._in_canvas(canvas_pos, width, height):
                         cv2.circle(current_img, (canvas_pos), radius=2, color=self.colors[j % len(self.colors)], thickness=-1)
@@ -153,11 +153,11 @@ class MultiBody:
 
 
 def main():
-    p1 = MP(pos = [200000000,0], m = 2e24, v = np.array([0,1000]), name="p1", dtype=np.float64)
-    p2 = MP(pos = [0,200000000], m = 1.5e24, v = np.array([-1000,0]), name="p2", dtype=np.float64)
-    p3 = MP(pos = [-200000000,0], m = 1.8e24, v = np.array([0,-1000]), name="p3", dtype=np.float64)
+    p1 = MP(pos = [200000000,0], m = 2e24, v = np.array([0,500]), name="p1", dtype=np.float64)
+    p2 = MP(pos = [0,200000000], m = 1.5e24, v = np.array([-500,0]), name="p2", dtype=np.float64)
+    p3 = MP(pos = [-200000000,0], m = 1.8e24, v = np.array([0,-500]), name="p3", dtype=np.float64)
 
-    system = MultiBody([p1, p2, p3], 20, 360, 12*30*10)
+    system = MultiBody([p1, p2, p3], 20, 360, 12*30*1)
     go_calc = True
     is_first = True
     video_no = 1
