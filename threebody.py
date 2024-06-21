@@ -169,12 +169,12 @@ def main():
         end = time.time()
         print(f"calc use {end - st}s")
 
-        plt.figure()
-        for i, mp in enumerate(system.mps):
-            plt.scatter(system.historys[i][:,0], system.historys[i][:,1], s=2,label=f"{mp.name}, pos:{np.round(mp.ori_pos, 2)}m, M:{mp.ori_m}kg, v:{mp.ori_v}m/s")
-        plt.title("Threebody")
-        plt.axis("equal")
-        plt.legend()
+        # plt.figure()
+        # for i, mp in enumerate(system.mps):
+        #     plt.scatter(system.historys[i][:,0], system.historys[i][:,1], s=2,label=f"{mp.name}, pos:{np.round(mp.ori_pos, 2)}m, M:{mp.ori_m}kg, v:{mp.ori_v}m/s")
+        # plt.title("Threebody")
+        # plt.axis("equal")
+        # plt.legend()
         # plt.show()
         system.gen_video(f"threebody_{video_no}", max_tail=1000)
         try:
