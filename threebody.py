@@ -6,6 +6,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import os
+import numba
+import time
+import inputimeout
 
 
 class MP:
@@ -23,6 +26,12 @@ class MP:
     def _clac_distance(self, other:"MP"):
         return np.linalg.norm(other.pos - self.pos)
 
+    
+    @staticmethod
+    @numba.njit(numba.float64[:](numba.float64[:], numba.float64, numba.float64, numba.float64[:], numba.float64[:]))
+    def __calc_a(olda, m, distance, otherpos, selfpos):
+        return olda + (CONSTANTS.G * m / np.power(distance, 3) * (otherpos - selfpos))
+
     def calc_a(self, mps:list["MP"]):
         '''
         计算合加速度
@@ -32,15 +41,27 @@ class MP:
             if mp == self:
                 continue
             distance = self._clac_distance(mp)
-            self.a += CONSTANTS.G * mp.m / np.power(distance, 3) * (mp.pos - self.pos)
-    
+            # self.a += CONSTANTS.G * mp.m / np.power(distance, 3) * (mp.pos - self.pos)
+            self.a = self.__calc_a(self.a, mp.m, distance, mp.pos, self.pos)
+
+    @staticmethod
+    @numba.njit()
+    def __update_move(pos, v, dlt_t, a):
+        dlt_s = v * dlt_t + a * np.square(dlt_t) / 2
+        new_v = v + a * dlt_t
+        new_pos = pos + dlt_s
+        return [new_v, new_pos]
+
     def update_move(self, dlt_t:np.int32):
         '''
         根据算出的a更新pos和速度,务必全部更新完加速度再更新距离,防止循环计算
         '''
-        dlt_s = self.v * dlt_t + self.a * np.square(dlt_t) / 2
-        self.v += self.a * dlt_t
-        self.pos += dlt_s
+        # dlt_s = self.v * dlt_t + self.a * np.square(dlt_t) / 2
+        # self.v += self.a * dlt_t
+        # self.pos += dlt_s
+        res = self.__update_move(self.pos, self.v, dlt_t, self.a)
+        self.v = res[0]
+        self.pos = res[1]
 
 class MultiBody:
     '''
@@ -93,7 +114,7 @@ class MultiBody:
         fourcc = cv2.VideoWriter.fourcc(*"H264")
         video_witer = cv2.VideoWriter(f"{self.video_dir}{os.sep}{file_name}.mp4",fourcc=fourcc,fps=30,frameSize=(width, height))
         for i in range(self.history_count):
-            print(f"正在写入第{i}帧\r", end="")
+            print(f"正在写入{file_name}第{i}帧\r", end="")
             current_img = tpl_img.copy()
             # 对于每一步，首先计算相对坐标
             # 锚定minx对应左15%，miny对应下15%,maxx右15%，maxy上15%
@@ -119,7 +140,7 @@ class MultiBody:
                 
                 cv2.circle(current_img, (canvas_pos), radius=8, color=self.colors[j % len(self.colors)], thickness=-1)
                 tail_i = i - 1
-                while tail_i >= 0 and i - tail_i - 1 < max_tail:
+                while (tail_i >= 0 or self.current_round >= self.history_count) and i - tail_i - 1 < max_tail:
                     canvas_pos = self._calc_canvas_pos(self.historys[j][tail_i], ori_opoint, div_times, width, height)
                     if self._in_canvas(canvas_pos, width, height):
                         cv2.circle(current_img, (canvas_pos), radius=2, color=self.colors[j % len(self.colors)], thickness=-1)
@@ -132,23 +153,36 @@ class MultiBody:
 
 
 def main():
-    p1 = MP(pos = [500000000,0], m = 2e24, v=np.array([100,-850]), name="p1", dtype=np.float64)
-    p2 = MP(pos = [0,280000000], m = 1.5e24, v = np.array([-300,380]), name="p2", dtype=np.float64)
-    p3 = MP(pos = [-200000000,0], m = 1.8e24, v = np.array([-450,-150]), name="p3", dtype=np.float64)
+    p1 = MP(pos = [200000000,0], m = 2e24, v = np.array([0,1000]), name="p1", dtype=np.float64)
+    p2 = MP(pos = [0,200000000], m = 1.5e24, v = np.array([-1000,0]), name="p2", dtype=np.float64)
+    p3 = MP(pos = [-200000000,0], m = 1.8e24, v = np.array([0,-1000]), name="p3", dtype=np.float64)
 
-    system = MultiBody([p1, p2, p3], 10, 720, 12*30)
-    for i in range(system.history_count - 1):
-        print(f"calc round {i} / {system.history_count}\r", end="")
-        system.calc_round()
+    system = MultiBody([p1, p2, p3], 20, 360, 12*30*10)
+    go_calc = True
+    is_first = True
+    video_no = 1
+    while go_calc:
+        st = time.time()
+        for i in range(system.history_count - (1 if is_first else 0)):
+            print(f"calc round {i} / {system.history_count}\r", end="")
+            system.calc_round()
+        end = time.time()
+        print(f"calc use {end - st}s")
 
-    plt.figure()
-    for i, mp in enumerate(system.mps):
-        plt.scatter(system.historys[i][:,0], system.historys[i][:,1], s=2,label=f"{mp.name}, pos:{np.round(mp.ori_pos, 2)}m, M:{mp.ori_m}kg, v:{mp.ori_v}m/s")
-    plt.title("Threebody")
-    plt.axis("equal")
-    plt.legend()
-    # plt.show()
-    system.gen_video()
+        plt.figure()
+        for i, mp in enumerate(system.mps):
+            plt.scatter(system.historys[i][:,0], system.historys[i][:,1], s=2,label=f"{mp.name}, pos:{np.round(mp.ori_pos, 2)}m, M:{mp.ori_m}kg, v:{mp.ori_v}m/s")
+        plt.title("Threebody")
+        plt.axis("equal")
+        plt.legend()
+        # plt.show()
+        system.gen_video(f"threebody_{video_no}", max_tail=1000)
+        try:
+            go_calc = inputimeout.inputimeout(("go? (y/n)"), 2).lower().strip() == "y"
+        except inputimeout.TimeoutOccurred:
+            go_calc = True
+        is_first  =False
+        video_no += 1
     
 
 
