@@ -10,6 +10,7 @@ import numba
 import time
 import inputimeout
 from datetime import datetime
+from PIL import ImageDraw, ImageFont, Image
 
 class MP:
     '''
@@ -101,12 +102,23 @@ class MultiBody:
             return False
         else:
             return True
+    
+    @staticmethod
+    def __put_text_chinese(img:np.ndarray, text:str, pos:list | tuple, color:tuple, font_size:float):
+        img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        draw = ImageDraw.Draw(img_pil)
+        font_path = "Deng.ttf"
+        font = ImageFont.truetype(font_path, font_size)
+        draw.text(pos, text, font=font, fill=color[::-1])
+        return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
     def gen_video(self, file_name:str="threebody", width:int=1920, height:int=1080, max_tail:int=300, padding:float = 0.3, fps:int=30):
         print("\n")
         if os.path.exists(self.whole_path) == False:
             os.makedirs(self.whole_path)
 
+        dot_scale = [mp.m / np.min([other.m for other in self.mps]) for mp in self.mps]
+        
         # 模版画面
         tpl_img = np.zeros((height, width, 3), dtype=np.uint8)
         p_count = len(self.mps)
@@ -114,10 +126,13 @@ class MultiBody:
         file_type = ".mp4"
         if "--x264" in sys.argv:
             fourcc = cv2.VideoWriter.fourcc(*"X264")
-            # file_type = ".avi"
+            file_type = ".mp4"
         elif "--xvid" in sys.argv:
             fourcc = cv2.VideoWriter.fourcc(*"XVID")
             file_type = ".avi"
+        elif "--h264" in sys.argv:
+            fourcc = cv2.VideoWriter.fourcc(*"H264")
+            file_type = ".mp4"
         
         video_witer = cv2.VideoWriter(full_file_name:=f"{self.whole_path}{os.sep}{file_name}{file_type}",fourcc=fourcc,fps=30,frameSize=(width, height))
         for i in range(self.history_count):
@@ -141,16 +156,60 @@ class MultiBody:
                 div_times = x_div_times
             
             #计算当前点的画布坐标，并绘制当前点
-            for j in range(p_count):
+            for j, current_mp in enumerate(self.mps):
                 # 对于每个质点，最多追溯max_tail个元素
                 canvas_pos = self._calc_canvas_pos(self.historys[j][i], ori_opoint, div_times, width, height)
-                
-                cv2.circle(current_img, (canvas_pos), radius=8, color=self.colors[j % len(self.colors)], thickness=-1)
+
+                eng_font = cv2.FONT_HERSHEY_SIMPLEX
+
+                # 绘制比例尺
+                line_pix = int(width * 0.1)
+                line_st = (int(width * 0.1), int(height * (1 - padding + 0.1)))
+                line_end = (line_st[0] + line_pix, line_st[1])
+                half_line_thickness = 2
+
+                # 主比例尺
+                rate_color = (0,255,255)
+                cv2.line(current_img, line_st, line_end, color=rate_color, thickness=half_line_thickness * 2)
+                # 比例尺两边
+                cv2.line(current_img, (line_st[0] + half_line_thickness, line_st[1] - int(line_pix * 0.05)), (line_st[0] + half_line_thickness, line_st[1] + int(line_pix * 0.05)),color=rate_color, thickness=half_line_thickness * 2)
+                cv2.line(current_img, (line_end[0] - half_line_thickness, line_end[1] - int(line_pix * 0.05)), (line_end[0] - half_line_thickness, line_end[1] + int(line_pix * 0.05)),color=rate_color, thickness=half_line_thickness * 2)
+                # 比例尺尺寸和推演时间
+                # 计算推演时间
+                total_sec = i * self.dlt_t * self.iter_round
+                day = total_sec // (3600 * 24)
+                hour  = (total_sec % (3600 * 24)) // 3600
+                min = (total_sec % 3600) // 60
+                sec = total_sec % 60
+                text_pos = (line_end[0] + 20, line_end[1] + 10)
+                cv2.putText(current_img, f"{np.round(line_pix * div_times / 1000, 1)} KM", text_pos, eng_font, 1, color=(0,255,255), thickness=2)
+
+                # 时间
+                text_pos = (line_st[0], line_st[1] + int(height * 0.05))
+                # cv2.putText(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}", text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, color=(0,255,255), thickness=2)
+                chn_font_size = int(width * 0.02)
+                current_img = self.__put_text_chinese(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}  推演步长:{self.dlt_t} 秒", pos=text_pos, color=(0,255,255), font_size=chn_font_size)
+
+                text_pos = (text_pos[0], text_pos[1] + chn_font_size)
+
+                # 星球信息，首先计算剩余行高，平均除以星球数，计算当前星球所在的行
+                remain_height = int((height - text_pos[1]) * 0.8)
+                each_height = remain_height // len(self.mps)
+                text_pos = (text_pos[0], text_pos[1] + each_height * (j + 1))
+                # 一个scale对应的像素数
+                font_rate = cv2.getTextSize("mNgP", eng_font, 1, 1)[0][1]
+                font_size = (each_height / font_rate) * 0.6
+
+                p_info_text = f"Name: {current_mp.name}, Mass: {current_mp.m:.4e} Kg, Pos: ({self.historys[j][i][0]:.5e}, {self.historys[j][i][1]:.5e}) m"
+
+                cv2.putText(current_img, p_info_text, text_pos, eng_font, font_size, color=self.colors[j], thickness=2)
+
+                cv2.circle(current_img, canvas_pos, radius=int(8*dot_scale[j]), color=self.colors[j % len(self.colors)], thickness=-1)
                 tail_i = i - 1
                 while tail_i >= 0 and i - tail_i - 1 < max_tail:
                     canvas_pos = self._calc_canvas_pos(self.historys[j][tail_i], ori_opoint, div_times, width, height)
                     if self._in_canvas(canvas_pos, width, height):
-                        cv2.circle(current_img, (canvas_pos), radius=2, color=self.colors[j % len(self.colors)], thickness=-1)
+                        cv2.circle(current_img, canvas_pos, radius=2, color=self.colors[j % len(self.colors)], thickness=-1)
                     tail_i -= 1
                     
             video_witer.write(current_img)
@@ -164,7 +223,7 @@ def main():
     p3 = MP(pos = [-200000000,0], m = 1.8e24, v = np.array([0,-500]), name="p3", dtype=np.float64)
 
     sub_dir = datetime.now().strftime("%m_%d_%H%M%S")
-    system = MultiBody([p1, p2, p3], 20, 360, 12*30*1, sub_dir=sub_dir)
+    system = MultiBody([p1, p2, p3], 2, 3600, 12*30*10, sub_dir=sub_dir)
     go_calc = True
     is_first = True
     video_no = 1
@@ -177,7 +236,7 @@ def main():
         end = time.time()
         print(f"calc use {end - st}s")
 
-        system.gen_video(f"threebody_{video_no}", max_tail=1000)
+        system.gen_video(f"threebody_{video_no}", max_tail=1500)
         try:
             go_calc = inputimeout.inputimeout(("go? (y/n)"), 2).lower().strip() == "y"
         except inputimeout.TimeoutOccurred:
