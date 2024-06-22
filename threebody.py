@@ -5,11 +5,11 @@ import scipy.constants as CONSTANTS
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
-import os
+import os,sys
 import numba
 import time
 import inputimeout
-
+from datetime import datetime
 
 class MP:
     '''
@@ -67,10 +67,11 @@ class MultiBody:
     '''
     多体模拟系统
     '''
-    video_dir = "video"
+    video_root_dir = "video"
     colors = [(240,50,50),(50,240,50),(50,50,240),(240,240,50),(240,50,240),(50,240,240),(255,255,255)]
-    def __init__(self, mps:list[MP], dlt_t:np.int32 = 10, iter_round:np.int32 = 8640, history_count:int = 100):
-        self.mps, self.dlt_t, self.iter_round = mps, dlt_t, iter_round
+    def __init__(self, mps:list[MP], dlt_t:np.int32 = 10, iter_round:np.int32 = 8640, history_count:int = 100, sub_dir:str = "common"):
+        self.mps, self.dlt_t, self.iter_round, self.sub_dir = mps, dlt_t, iter_round, sub_dir
+        self.whole_path = f"{self.video_root_dir}{os.sep}{self.sub_dir}"
         self.history_count = history_count
         self.historys = [np.zeros((self.history_count, 2), dtype=np.float64) for j in range(len(self.mps))]
         self.current_round = 0
@@ -101,18 +102,24 @@ class MultiBody:
         else:
             return True
 
-
-
     def gen_video(self, file_name:str="threebody", width:int=1920, height:int=1080, max_tail:int=300, padding:float = 0.3, fps:int=30):
         print("\n")
-        if os.path.exists(self.video_dir) == False:
-            os.mkdir(self.video_dir)
+        if os.path.exists(self.whole_path) == False:
+            os.makedirs(self.whole_path)
 
         # 模版画面
         tpl_img = np.zeros((height, width, 3), dtype=np.uint8)
         p_count = len(self.mps)
         fourcc = cv2.VideoWriter.fourcc(*"avc1")
-        video_witer = cv2.VideoWriter(f"{self.video_dir}{os.sep}{file_name}.mp4",fourcc=fourcc,fps=30,frameSize=(width, height))
+        file_type = ".mp4"
+        if "--x264" in sys.argv:
+            fourcc = cv2.VideoWriter.fourcc(*"X264")
+            # file_type = ".avi"
+        elif "--xvid" in sys.argv:
+            fourcc = cv2.VideoWriter.fourcc(*"XVID")
+            file_type = ".avi"
+
+        video_witer = cv2.VideoWriter(f"{self.whole_path}{os.sep}{file_name}{file_type}",fourcc=fourcc,fps=30,frameSize=(width, height))
         for i in range(self.history_count):
             print(f"正在写入{file_name}第{i}帧\r", end="")
             current_img = tpl_img.copy()
@@ -156,10 +163,12 @@ def main():
     p2 = MP(pos = [0,200000000], m = 1.5e24, v = np.array([-500,0]), name="p2", dtype=np.float64)
     p3 = MP(pos = [-200000000,0], m = 1.8e24, v = np.array([0,-500]), name="p3", dtype=np.float64)
 
-    system = MultiBody([p1, p2, p3], 20, 360, 12*30*1)
+    sub_dir = datetime.now().strftime("%m_%d_%H%M%S")
+    system = MultiBody([p1, p2, p3], 20, 360, 12*30*1, sub_dir=sub_dir)
     go_calc = True
     is_first = True
     video_no = 1
+    
     while go_calc:
         st = time.time()
         for i in range(system.history_count - (1 if is_first else 0)):
@@ -168,13 +177,6 @@ def main():
         end = time.time()
         print(f"calc use {end - st}s")
 
-        # plt.figure()
-        # for i, mp in enumerate(system.mps):
-        #     plt.scatter(system.historys[i][:,0], system.historys[i][:,1], s=2,label=f"{mp.name}, pos:{np.round(mp.ori_pos, 2)}m, M:{mp.ori_m}kg, v:{mp.ori_v}m/s")
-        # plt.title("Threebody")
-        # plt.axis("equal")
-        # plt.legend()
-        # plt.show()
         system.gen_video(f"threebody_{video_no}", max_tail=1000)
         try:
             go_calc = inputimeout.inputimeout(("go? (y/n)"), 2).lower().strip() == "y"
@@ -182,8 +184,6 @@ def main():
             go_calc = True
         is_first  =False
         video_no += 1
-    
-
 
 if __name__ == "__main__":
     main()
