@@ -223,7 +223,7 @@ def main():
     p3 = MP(pos = [-200000000,0], m = 1.8e24, v = np.array([0,-500]), name="p3", dtype=np.float64)
 
     sub_dir = datetime.now().strftime("%m_%d_%H%M%S")
-    system = MultiBody([p1, p2, p3], 2, 3600, 12*30*10, sub_dir=sub_dir)
+    system = MultiBody([p1, p2, p3], 2, 3600, 12*30*1, sub_dir=sub_dir)
     go_calc = True
     is_first = True
     video_no = 1
