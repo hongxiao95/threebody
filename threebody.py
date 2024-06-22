@@ -118,10 +118,10 @@ class MultiBody:
         elif "--xvid" in sys.argv:
             fourcc = cv2.VideoWriter.fourcc(*"XVID")
             file_type = ".avi"
-
-        video_witer = cv2.VideoWriter(f"{self.whole_path}{os.sep}{file_name}{file_type}",fourcc=fourcc,fps=30,frameSize=(width, height))
+        
+        video_witer = cv2.VideoWriter(full_file_name:=f"{self.whole_path}{os.sep}{file_name}{file_type}",fourcc=fourcc,fps=30,frameSize=(width, height))
         for i in range(self.history_count):
-            print(f"正在写入{file_name}第{i}帧\r", end="")
+            print(f"正在写入{full_file_name}第{i}帧\r", end="")
             current_img = tpl_img.copy()
             # 对于每一步，首先计算相对坐标
             # 锚定minx对应左15%，miny对应下15%,maxx右15%，maxy上15%
