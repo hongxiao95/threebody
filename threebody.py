@@ -75,9 +75,11 @@ class MultiBody:
         self.whole_path = f"{self.video_root_dir}{os.sep}{self.sub_dir}"
         self.history_count = history_count
         self.historys = [np.zeros((self.history_count, 2), dtype=np.float64) for j in range(len(self.mps))]
+        self.v_history = [np.zeros((self.history_count, 2), dtype=np.float64) for j in range(len(self.mps))]
         self.current_round = 0
         for i in range(len(self.mps)):
             self.historys[i][0] = np.copy(self.mps[i].pos)
+            self.v_history[i][0] = np.copy(self.mps[i].v)
 
     def calc_round(self):
         self.current_round += 1
@@ -88,6 +90,7 @@ class MultiBody:
                 mp.update_move(self.dlt_t)
                 # 记录历史移动轨迹
                 self.historys[j][self.current_round % self.history_count] = np.copy(mp.pos)
+                self.v_history[j][self.current_round % self.history_count] = np.copy(mp.v)
 
     def _calc_canvas_pos(self, ori_pos:np.ndarray, ori_opoint:np.ndarray, div_times:int, width:int, height:int):
         relative_pos = ori_pos - ori_opoint
@@ -118,10 +121,28 @@ class MultiBody:
             os.makedirs(self.whole_path)
 
         dot_scale = [mp.m / np.min([other.m for other in self.mps]) for mp in self.mps]
+        scale_max = 2
+        if max(dot_scale) > 1:
+            second_scale = (max(dot_scale) - 1) / (scale_max - 1)
+            new_dot_scale = [1 + (s - 1) / second_scale for s in dot_scale]
+            dot_scale = new_dot_scale
         
         # 模版画面
         tpl_img = np.zeros((height, width, 3), dtype=np.uint8)
-        p_count = len(self.mps)
+
+        # 绘制比例尺
+        line_pix = int(width * 0.1)
+        line_st = (int(width * 0.1), int(height * (1 - padding + 0.1)))
+        line_end = (line_st[0] + line_pix, line_st[1])
+        half_line_thickness = 2
+
+        # 主比例尺
+        rate_color = (0,255,255)
+        cv2.line(tpl_img, line_st, line_end, color=rate_color, thickness=half_line_thickness * 2)
+        # 比例尺两边
+        cv2.line(tpl_img, (line_st[0] + half_line_thickness, line_st[1] - int(line_pix * 0.05)), (line_st[0] + half_line_thickness, line_st[1] + int(line_pix * 0.05)),color=rate_color, thickness=half_line_thickness * 2)
+        cv2.line(tpl_img, (line_end[0] - half_line_thickness, line_end[1] - int(line_pix * 0.05)), (line_end[0] - half_line_thickness, line_end[1] + int(line_pix * 0.05)),color=rate_color, thickness=half_line_thickness * 2)
+
         fourcc = cv2.VideoWriter.fourcc(*"avc1")
         file_type = ".mp4"
         if "--x264" in sys.argv:
@@ -133,11 +154,16 @@ class MultiBody:
         elif "--h264" in sys.argv:
             fourcc = cv2.VideoWriter.fourcc(*"H264")
             file_type = ".mp4"
+
         
-        video_witer = cv2.VideoWriter(full_file_name:=f"{self.whole_path}{os.sep}{file_name}{file_type}",fourcc=fourcc,fps=30,frameSize=(width, height))
+        video_witer = cv2.VideoWriter(full_file_name:=f"{self.whole_path}{os.sep}{file_name}{file_type}",fourcc=fourcc,fps=fps,frameSize=(width, height))
+        tpl_imgs = []
+        img_buffer_size = 100
         for i in range(self.history_count):
             print(f"正在写入{full_file_name}第{i}帧\r", end="")
-            current_img = tpl_img.copy()
+            if (buffer_index:=i % img_buffer_size) == 0:
+                tpl_imgs = [tpl_img.copy() for __ in range(img_buffer_size)]
+            current_img = tpl_imgs[buffer_index]
             # 对于每一步，首先计算相对坐标
             # 锚定minx对应左15%，miny对应下15%,maxx右15%，maxy上15%
             sorted_ori_xs = np.sort([mp_his[i][0] for mp_his in self.historys])
@@ -162,19 +188,6 @@ class MultiBody:
 
                 eng_font = cv2.FONT_HERSHEY_SIMPLEX
 
-                # 绘制比例尺
-                line_pix = int(width * 0.1)
-                line_st = (int(width * 0.1), int(height * (1 - padding + 0.1)))
-                line_end = (line_st[0] + line_pix, line_st[1])
-                half_line_thickness = 2
-
-                # 主比例尺
-                rate_color = (0,255,255)
-                cv2.line(current_img, line_st, line_end, color=rate_color, thickness=half_line_thickness * 2)
-                # 比例尺两边
-                cv2.line(current_img, (line_st[0] + half_line_thickness, line_st[1] - int(line_pix * 0.05)), (line_st[0] + half_line_thickness, line_st[1] + int(line_pix * 0.05)),color=rate_color, thickness=half_line_thickness * 2)
-                cv2.line(current_img, (line_end[0] - half_line_thickness, line_end[1] - int(line_pix * 0.05)), (line_end[0] - half_line_thickness, line_end[1] + int(line_pix * 0.05)),color=rate_color, thickness=half_line_thickness * 2)
-                # 比例尺尺寸和推演时间
                 # 计算推演时间
                 total_sec = i * self.dlt_t * self.iter_round
                 day = total_sec // (3600 * 24)
@@ -182,13 +195,14 @@ class MultiBody:
                 min = (total_sec % 3600) // 60
                 sec = total_sec % 60
                 text_pos = (line_end[0] + 20, line_end[1] + 10)
-                cv2.putText(current_img, f"{np.round(line_pix * div_times / 1000, 1)} KM", text_pos, eng_font, 1, color=(0,255,255), thickness=2)
+                cv2.putText(current_img, f"{np.round(line_pix * div_times / 1000, 1)} KM", text_pos, eng_font, 1, color=rate_color, thickness=2)
 
                 # 时间
                 text_pos = (line_st[0], line_st[1] + int(height * 0.05))
                 # cv2.putText(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}", text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, color=(0,255,255), thickness=2)
                 chn_font_size = int(width * 0.02)
-                current_img = self.__put_text_chinese(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}  推演步长:{self.dlt_t} 秒, 推演总时长 {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} 天", pos=text_pos, color=(0,255,255), font_size=chn_font_size)
+                # current_img = self.__put_text_chinese(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}  推演步长:{self.dlt_t} 秒, 推演总时长 {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} 天", pos=text_pos, color=(0,255,255), font_size=chn_font_size)
+                cv2.putText(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}  Simulation Step:{self.dlt_t} sec, Total Simulation Time: {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} day", text_pos, eng_font, 1, color = rate_color, thickness = 2)
 
                 text_pos = (text_pos[0], text_pos[1] + chn_font_size)
 
@@ -200,7 +214,7 @@ class MultiBody:
                 font_rate = cv2.getTextSize("mNgP", eng_font, 1, 1)[0][1]
                 font_size = (each_height / font_rate) * 0.5
 
-                p_info_text = f"Name: {current_mp.name}, M: {current_mp.m:.2e} Kg, Pos: ({self.historys[j][i][0]:.2e}, {self.historys[j][i][1]:.2e}) m, Ori_pos: ({current_mp.ori_pos[0]:.2e}, {current_mp.ori_pos[1]:.2e}) m, Ori_v: ({current_mp.ori_v[0]:.2e}, {current_mp.ori_v[1]:.2e}) m/s"
+                p_info_text = f"Name: {current_mp.name}, M: {current_mp.m:.2e} Kg, Pos: ({self.historys[j][i][0]:.2e}, {self.historys[j][i][1]:.2e}) m, V: ({self.v_history[j][i][0]:.2}, {self.v_history[j][i][1]:.2}) m/s"
 
                 cv2.putText(current_img, p_info_text, text_pos, eng_font, font_size, color=self.colors[j], thickness=2)
 
@@ -213,17 +227,19 @@ class MultiBody:
                     tail_i -= 1
                     
             video_witer.write(current_img)
+            tpl_imgs[buffer_index] = None
+            current_img = None
         video_witer.release()
         print("写入完成")
 
 
 def main():
-    p1 = MP(pos = [200000000,0], m = 2e24, v = np.array([0,600]), name="p1", dtype=np.float64)
-    p2 = MP(pos = [0,200000000], m = 1.5e24, v = np.array([-500,0]), name="p2", dtype=np.float64)
-    p3 = MP(pos = [-200000000,0], m = 1.8e24, v = np.array([0,-500]), name="p3", dtype=np.float64)
+    p1 = MP(pos = [0,1.5e11], m = 1.5e30, v = np.array([25000,0]), name="sun", dtype=np.float64)
+    p2 = MP(pos = [8.66e10,0], m = 1.5e30, v = np.array([-12500,-21650]), name="earth", dtype=np.float64)
+    p3 = MP(pos = [-8.66e10,0], m = 1.5e30, v = np.array([-12500,21650]), name="moon", dtype=np.float64)
 
     sub_dir = datetime.now().strftime("%m_%d_%H%M%S")
-    system = MultiBody([p1, p2, p3], 2, 3600, 12*30*2, sub_dir=sub_dir)
+    system = MultiBody([p1, p2, p3], 60, 960, 3*365*9, sub_dir=sub_dir)
     go_calc = True
     is_first = True
     video_no = 1
@@ -236,7 +252,7 @@ def main():
         end = time.time()
         print(f"calc use {end - st}s")
 
-        system.gen_video(f"threebody_{video_no}", max_tail=1500)
+        system.gen_video(f"threebody_{video_no}", max_tail=3000, fps=60)
         try:
             go_calc = inputimeout.inputimeout(("go? (y/n)"), 2).lower().strip() == "y"
         except inputimeout.TimeoutOccurred:
