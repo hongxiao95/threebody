@@ -188,7 +188,7 @@ class MultiBody:
                 text_pos = (line_st[0], line_st[1] + int(height * 0.05))
                 # cv2.putText(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}", text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, color=(0,255,255), thickness=2)
                 chn_font_size = int(width * 0.02)
-                current_img = self.__put_text_chinese(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}  推演步长:{self.dlt_t} 秒", pos=text_pos, color=(0,255,255), font_size=chn_font_size)
+                current_img = self.__put_text_chinese(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}  推演步长:{self.dlt_t} 秒, 推演总时长 {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} 天", pos=text_pos, color=(0,255,255), font_size=chn_font_size)
 
                 text_pos = (text_pos[0], text_pos[1] + chn_font_size)
 
@@ -198,9 +198,9 @@ class MultiBody:
                 text_pos = (text_pos[0], text_pos[1] + each_height * (j + 1))
                 # 一个scale对应的像素数
                 font_rate = cv2.getTextSize("mNgP", eng_font, 1, 1)[0][1]
-                font_size = (each_height / font_rate) * 0.6
+                font_size = (each_height / font_rate) * 0.5
 
-                p_info_text = f"Name: {current_mp.name}, Mass: {current_mp.m:.4e} Kg, Pos: ({self.historys[j][i][0]:.5e}, {self.historys[j][i][1]:.5e}) m"
+                p_info_text = f"Name: {current_mp.name}, M: {current_mp.m:.2e} Kg, Pos: ({self.historys[j][i][0]:.2e}, {self.historys[j][i][1]:.2e}) m, Ori_pos: ({current_mp.ori_pos[0]:.2e}, {current_mp.ori_pos[1]:.2e}) m, Ori_v: ({current_mp.ori_v[0]:.2e}, {current_mp.ori_v[1]:.2e}) m/s"
 
                 cv2.putText(current_img, p_info_text, text_pos, eng_font, font_size, color=self.colors[j], thickness=2)
 
@@ -218,12 +218,12 @@ class MultiBody:
 
 
 def main():
-    p1 = MP(pos = [200000000,0], m = 2e24, v = np.array([0,500]), name="p1", dtype=np.float64)
+    p1 = MP(pos = [200000000,0], m = 2e24, v = np.array([0,600]), name="p1", dtype=np.float64)
     p2 = MP(pos = [0,200000000], m = 1.5e24, v = np.array([-500,0]), name="p2", dtype=np.float64)
     p3 = MP(pos = [-200000000,0], m = 1.8e24, v = np.array([0,-500]), name="p3", dtype=np.float64)
 
     sub_dir = datetime.now().strftime("%m_%d_%H%M%S")
-    system = MultiBody([p1, p2, p3], 2, 3600, 12*30*1, sub_dir=sub_dir)
+    system = MultiBody([p1, p2, p3], 2, 3600, 12*30*2, sub_dir=sub_dir)
     go_calc = True
     is_first = True
     video_no = 1
