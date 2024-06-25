@@ -69,7 +69,7 @@ class MultiBody:
     多体模拟系统
     '''
     video_root_dir = "video"
-    colors = [(240,50,50),(50,240,50),(50,50,240),(240,240,50),(240,50,240),(50,240,240),(255,255,255)]
+    colors = [(240,50,50),(50,240,50),(50,50,240),(240,240,50),(240,50,240),(50,240,240),(50,140,240),(50,240,140),(140,50,240),(140,240,50),(240,140,50),(240,50,140),(255,255,255)]
     def __init__(self, mps:list[MP], dlt_t:np.int32 = 10, iter_round:np.int32 = 8640, history_count:int = 100, sub_dir:str = "common"):
         self.mps, self.dlt_t, self.iter_round, self.sub_dir = mps, dlt_t, iter_round, sub_dir
         self.whole_path = f"{self.video_root_dir}{os.sep}{self.sub_dir}"
@@ -159,8 +159,9 @@ class MultiBody:
         video_witer = cv2.VideoWriter(full_file_name:=f"{self.whole_path}{os.sep}{file_name}{file_type}",fourcc=fourcc,fps=fps,frameSize=(width, height))
         tpl_imgs = []
         img_buffer_size = 100
+        print()
         for i in range(self.history_count):
-            print(f"正在写入{full_file_name}第{i}帧\r", end="")
+            print(f"正在写入{full_file_name}第{i + 1} / {self.history_count}帧 \r", end="")
             if (buffer_index:=i % img_buffer_size) == 0:
                 tpl_imgs = [tpl_img.copy() for __ in range(img_buffer_size)]
             current_img = tpl_imgs[buffer_index]
@@ -232,14 +233,22 @@ class MultiBody:
         video_witer.release()
         print("写入完成")
 
-
-def main():
-    p1 = MP(pos = [0,1.5e11], m = 1.5e30, v = np.array([25000,0]), name="sun", dtype=np.float64)
-    p2 = MP(pos = [8.66e10,0], m = 1.5e30, v = np.array([-12500,-21650]), name="earth", dtype=np.float64)
-    p3 = MP(pos = [-8.66e10,0], m = 1.5e30, v = np.array([-12500,21650]), name="moon", dtype=np.float64)
-
+def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval:int = 3600, video_fps:int = 30, max_tail:int = 1000, video_sec:int = 30, total_frames_cover_sec:int = None):
     sub_dir = datetime.now().strftime("%m_%d_%H%M%S")
-    system = MultiBody([p1, p2, p3], 60, 960, 3*365*9, sub_dir=sub_dir)
+    total_frames = video_sec * video_fps
+    if total_frames_cover_sec is not None:
+        total_frames = total_frames_cover_sec
+        video_sec = total_frames // video_fps
+
+    virtual_days = calc_step_s * frame_steps_interval * total_frames // 86400
+
+    simulation_info = f"准备生成 {len(mps)} 体运动模拟动画，计算步长 {calc_step_s} 秒, 每帧 {frame_steps_interval} 步， 视频帧率: {video_fps} fps, 拖尾长度:{max_tail} 帧, 视频时长:{video_sec}秒, 每秒相当时长:{calc_step_s * frame_steps_interval}秒, 模拟相当时长:{virtual_days}天，存储在文件夹:{sub_dir}。是否继续？(y/n)"
+
+    ask_continue = input(simulation_info).strip().lower()
+    if ask_continue != "y":
+        sys.exit(0)
+
+    system = MultiBody(mps, calc_step_s, frame_steps_interval, total_frames, sub_dir=sub_dir)
     go_calc = True
     is_first = True
     video_no = 1
@@ -249,16 +258,30 @@ def main():
         for i in range(system.history_count - (1 if is_first else 0)):
             print(f"calc round {i} / {system.history_count}\r", end="")
             system.calc_round()
+        
         end = time.time()
-        print(f"calc use {end - st}s")
+        print(f"\ncalc use {end - st}s")
 
-        system.gen_video(f"threebody_{video_no}", max_tail=3000, fps=60)
+        system.gen_video(f"threebody_{video_no}", max_tail=max_tail, fps=video_fps)
         try:
             go_calc = inputimeout.inputimeout(("go? (y/n)"), 2).lower().strip() == "y"
         except inputimeout.TimeoutOccurred:
             go_calc = True
         is_first  =False
         video_no += 1
+    pass
+def main():
+    stable1 = MP(pos = [0,1.5e11], m = 1.5e30, v = np.array([25000,0]), name="sun", dtype=np.float64)
+    stable2 = MP(pos = [8.66e10,0], m = 1.5e30, v = np.array([-12500,-21650]), name="earth", dtype=np.float64)
+    stable3 = MP(pos = [-8.66e10,0], m = 1.5e30, v = np.array([-12500,21650]), name="moon", dtype=np.float64)
+    non_stable = [stable1, stable2, stable3]
+    gen_simulation_video(non_stable, 60, 1200, 60, 1000, 30)
+
+    # 模拟双星系统
+    # sun1 = MP(pos = [-2e11,0.5e11], m = 1.5e30, v = np.array([10000,0]), name="sun", dtype=np.float64)
+    # sun2 = MP(pos = [2e11,-0.5e11], m = 1.5e30, v = np.array([-10000,0]), name="sun", dtype=np.float64)
+    # double_sun = [sun1, sun2]
+    # gen_simulation_video(double_sun, 60, 960, 60, 1500, 45)
 
 if __name__ == "__main__":
     main()
