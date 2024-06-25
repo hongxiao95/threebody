@@ -127,6 +127,8 @@ class MultiBody:
             second_scale = (max(dot_scale) - 1) / (scale_max - 1)
             new_dot_scale = [1 + (s - 1) / second_scale for s in dot_scale]
             dot_scale = new_dot_scale
+        else:
+            dot_scale = [1 + (scale_max - 1) / 2 for _ in range(len(self.mps))]
         
         # 模版画面
         tpl_img = np.zeros((height, width, 3), dtype=np.uint8)
@@ -255,13 +257,17 @@ class MultiBody:
 
                 cv2.putText(current_img, p_info_text, text_pos, eng_font, font_size, color=self.colors[j], thickness=2)
 
-                cv2.circle(current_img, canvas_pos, radius=int(8*dot_scale[j]), color=self.colors[j % len(self.colors)], thickness=-1)
-                tail_i = i - 1
-                while tail_i >= 0 and i - tail_i - 1 < max_tail:
+                # 绘制拖影
+                tail_i = max(0, i - max_tail)
+                tail_color_base = [min(rgb * 1.2, 255) for rgb in self.colors[j % len(self.colors)]]
+                while tail_i < i:
+                    # 计算该拖影在不在画面内，不在就不画，节省性能
                     canvas_pos = self._calc_canvas_pos(self.historys[j][tail_i], ori_opoint, div_times, width, height)
                     if self._in_canvas(canvas_pos, width, height):
-                        cv2.circle(current_img, canvas_pos, radius=2, color=self.colors[j % len(self.colors)], thickness=-1)
-                    tail_i -= 1
+                        cv2.circle(current_img, canvas_pos, radius=2, color=[int(rgb *  (1 - (i - tail_i) / max_tail)) for rgb in tail_color_base], thickness=-1)
+                    tail_i += 1
+                # 绘制星球本体
+                cv2.circle(current_img, canvas_pos, radius=int(8*dot_scale[j]), color=self.colors[j % len(self.colors)], thickness=-1)
                     
             video_witer.write(current_img)
             tpl_imgs[buffer_index] = None
@@ -307,11 +313,16 @@ def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval
         video_no += 1
     pass
 def main():
-    stable1 = MP(pos = [0,1.5e11], m = 1.5e30, v = np.array([25000,0]), name="sun", dtype=np.float64)
-    stable2 = MP(pos = [8.66e10,0], m = 1.5e30, v = np.array([-12500,-21650]), name="earth", dtype=np.float64)
-    stable3 = MP(pos = [-8.66e10,0], m = 1.5e30, v = np.array([-12500,21650]), name="moon", dtype=np.float64)
-    non_stable = [stable1, stable2, stable3]
-    gen_simulation_video(non_stable, 60, 1200, 60, 1000, 30)
+    # 模拟三体
+    # stable1 = MP(pos = [0,1.5e11], m = 1.61e30, v = np.array([25000,0]), name="sun", dtype=np.float64)
+    # stable2 = MP(pos = [8.66e10,0], m = 1.61e30, v = np.array([-12500,-21650]), name="earth", dtype=np.float64)
+    # stable3 = MP(pos = [-8.66e10,0], m = 1.61e30, v = np.array([-12500,21650]), name="moon", dtype=np.float64)
+    # non_stable = [stable1, stable2, stable3]
+    # gen_simulation_video(non_stable, 90, 1200, 60, 1000, 60)
+
+    # 模拟20体
+    plants = [MP(pos = [(np.random.rand() - 0.5) * 3e11, (np.random.rand() - 0.5) * 3e11], m = 0.4e30 + np.random.rand() * 1.6e30, v = np.array([(np.random.rand() - 0.5) * 20000, (np.random.rand() - 0.5) * 20000]), name=f"P{i}",dtype=np.float64) for i in range(8)]
+    gen_simulation_video(plants, 60, 1200, 60, 300, 15)
 
     # 模拟双星系统
     # sun1 = MP(pos = [-2e11,0.5e11], m = 1.5e30, v = np.array([10000,0]), name="sun", dtype=np.float64)
