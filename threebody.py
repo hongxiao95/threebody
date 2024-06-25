@@ -31,7 +31,7 @@ class MP:
     @staticmethod
     @numba.njit(numba.float64[:](numba.float64[:], numba.float64, numba.float64, numba.float64[:], numba.float64[:]))
     def __calc_a(olda, m, distance, otherpos, selfpos):
-        return olda + (CONSTANTS.G * m / np.power(distance, 3) * (otherpos - selfpos))
+        return olda + (m / np.power(distance, 3) * (otherpos - selfpos))
 
     def calc_a(self, mps:list["MP"]):
         '''
@@ -44,6 +44,7 @@ class MP:
             distance = self._clac_distance(mp)
             # self.a += CONSTANTS.G * mp.m / np.power(distance, 3) * (mp.pos - self.pos)
             self.a = self.__calc_a(self.a, mp.m, distance, mp.pos, self.pos)
+        self.a *= CONSTANTS.G
 
     @staticmethod
     @numba.njit()
