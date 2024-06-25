@@ -161,13 +161,20 @@ class MultiBody:
         tpl_imgs = []
         img_buffer_size = 100
         print()
+        last_div_times = None
+        # 质点占画面的幅比
+        max_cross_rate = 1 - padding * 2 + 0.05
+        min_cross_rate = 1 - padding * 2 - 0.05
+        mid_cross_rate = 1 - padding * 2
+        # print(f"crossrate :max:{max_cross_rate}, min:{min_cross_rate}, mid:{mid_cross_rate}")
+        # input()
         for i in range(self.history_count):
             print(f"正在写入{full_file_name}第{i + 1} / {self.history_count}帧 \r", end="")
             if (buffer_index:=i % img_buffer_size) == 0:
                 tpl_imgs = [tpl_img.copy() for __ in range(img_buffer_size)]
             current_img = tpl_imgs[buffer_index]
             # 对于每一步，首先计算相对坐标
-            # 锚定minx对应左15%，miny对应下15%,maxx右15%，maxy上15%
+            
             sorted_ori_xs = np.sort([mp_his[i][0] for mp_his in self.historys])
             ori_min_x, ori_max_x = sorted_ori_xs[0], sorted_ori_xs[-1]
 
@@ -178,10 +185,38 @@ class MultiBody:
             ori_opoint = np.array([(ori_min_x + ori_max_x) / 2, (ori_min_y + ori_max_y) / 2])
 
             # 计算坐标缩放倍数
-            div_times = int((ori_max_y - ori_min_y) / (height * (1 - 2 * padding)))
-            if (x_div_times:=int((ori_max_x - ori_min_x) / (width * (1 - 2 * padding)))) > div_times:
-                # 如果按横坐标缩放，代表的范围更广，应采纳横坐标缩放倍率，反之亦然
-                div_times = x_div_times
+            x_cross = ori_max_x - ori_min_x
+            y_cross = ori_max_y - ori_min_y
+            
+            # 为了防止画面抖动，允许倍数左右缩放0.05个padding，也就是
+            # 本次使用的画面幅比控制
+            using_cross_rate = mid_cross_rate
+            need_recalc_rate = True
+            if last_div_times != None:
+                # 计算沿用上次的倍数是否符合
+                # 沿用上次，y方向实际占据屏幕比例
+                y_occupy = y_cross / last_div_times / height
+                x_occupy = x_cross / last_div_times / width
+                # print(f"frame{i}: y_occ_rate {y_occupy}, x_occ_rate {x_occupy}",end="")
+
+                # 分情况讨论：任意一个占据比例大于最大，则需要重新计算，贴合上限
+                if max(y_occupy, x_occupy) > max_cross_rate:
+                    using_cross_rate = max_cross_rate
+                # 都没有超过最大比例，但都小于最小，重新计算，贴合下限
+                elif max(y_occupy, x_occupy) < min_cross_rate:
+                    using_cross_rate = min_cross_rate
+                # 一个在比例内，一个小，不变，全部在比例内，不变,flag设为0
+                else:
+                    using_cross_rate = mid_cross_rate
+                    need_recalc_rate = False
+            # print(f"frane:{i}, using_rate{using_cross_rate},need_recalc:{need_recalc_rate}")
+            div_times = last_div_times
+            if need_recalc_rate:
+                div_times = int(y_cross / (height * using_cross_rate))
+                if (x_div_times:=int(x_cross / (width * using_cross_rate))) > div_times:
+                    # 如果按横坐标缩放，代表的范围更广，应采纳横坐标缩放倍率，反之亦然
+                    div_times = x_div_times
+                last_div_times = div_times
             
             #计算当前点的画布坐标，并绘制当前点
             for j, current_mp in enumerate(self.mps):
@@ -194,17 +229,17 @@ class MultiBody:
                 total_sec = i * self.dlt_t * self.iter_round
                 day = total_sec // (3600 * 24)
                 hour  = (total_sec % (3600 * 24)) // 3600
-                min = (total_sec % 3600) // 60
+                minutes = (total_sec % 3600) // 60
                 sec = total_sec % 60
                 text_pos = (line_end[0] + 20, line_end[1] + 10)
                 cv2.putText(current_img, f"{np.round(line_pix * div_times / 1000, 1)} KM", text_pos, eng_font, 1, color=rate_color, thickness=2)
 
                 # 时间
                 text_pos = (line_st[0], line_st[1] + int(height * 0.05))
-                # cv2.putText(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}", text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, color=(0,255,255), thickness=2)
+                # cv2.putText(current_img, f"Day {day}, {hour:02}:{minutes:02}:{sec:02}", text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, color=(0,255,255), thickness=2)
                 chn_font_size = int(width * 0.02)
-                # current_img = self.__put_text_chinese(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}  推演步长:{self.dlt_t} 秒, 推演总时长 {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} 天", pos=text_pos, color=(0,255,255), font_size=chn_font_size)
-                cv2.putText(current_img, f"Day {day}, {hour:02}:{min:02}:{sec:02}  Simulation Step:{self.dlt_t} sec, Total Simulation Time: {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} day", text_pos, eng_font, 1, color = rate_color, thickness = 2)
+                # current_img = self.__put_text_chinese(current_img, f"Day {day}, {hour:02}:{minutes:02}:{sec:02}  推演步长:{self.dlt_t} 秒, 推演总时长 {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} 天", pos=text_pos, color=(0,255,255), font_size=chn_font_size)
+                cv2.putText(current_img, f"Day {day}, {hour:02}:{minutes:02}:{sec:02}  Simulation Step:{self.dlt_t} sec, Total Simulation Time: {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} day", text_pos, eng_font, 1, color = rate_color, thickness = 2)
 
                 text_pos = (text_pos[0], text_pos[1] + chn_font_size)
 
