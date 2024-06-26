@@ -11,6 +11,8 @@ import time
 import inputimeout
 from datetime import datetime
 from PIL import ImageDraw, ImageFont, Image
+from threading import Thread
+from concurrent import futures
 
 class MP:
     '''
@@ -327,16 +329,42 @@ def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval
         video_no += 1
     pass
 def main():
-    # 模拟三体
-    # stable1 = MP(pos = [0,1.5e11], m = 1.61e30, v = np.array([25000,0]), name="sun", dtype=np.float64)
-    # stable2 = MP(pos = [8.66e10,0], m = 1.61e30, v = np.array([-12500,-21650]), name="earth", dtype=np.float64)
-    # stable3 = MP(pos = [-8.66e10,0], m = 1.61e30, v = np.array([-12500,21650]), name="moon", dtype=np.float64)
+    # # # 模拟三体
+    # stable1 = MP(pos = [0, 1.5e11], m = 1.6e30, v = np.array([25000,0]), name="sun", dtype=np.float64)
+    # stable2 = MP(pos = [8.66e10, 0], m = 1.2e30, v = np.array([-12500,-21650]), name="earth", dtype=np.float64)
+    # stable3 = MP(pos = [-8.66e10, 0], m = 0.6e30, v = np.array([-12500,21650]), name="moon", dtype=np.float64)
     # non_stable = [stable1, stable2, stable3]
-    # gen_simulation_video(non_stable, 90, 1200, 60, 1000, 90)
+    # gen_simulation_video(non_stable, 180, 600, 60, 1000, 90)
+
+    # # 模拟双行星系
+    # sun1 = MP(pos = [3e11, 0], m = 2e30, v = np.array([0,15000]), name="S1", dtype=np.float64)
+    # sun2 = MP(pos = [-3e11, 0], m = 1.5e30, v = np.array([0,-15000]), name="S2", dtype=np.float64)
+    # earth1 = MP(pos = [4e11, 0], m = 0.4e30, v = np.array([0,-24000]), name="E1", dtype=np.float64)
+    # earth2 = MP(pos = [-4e11, 0], m = 0.4e30, v = np.array([0,16000]), name="E2", dtype=np.float64)
+
+    # double_solar = [sun1, sun2, earth1, earth2]
+    # gen_simulation_video(double_solar, 45, 2400, 60, 1000, 90)
+
+    # # 模拟双行星系2
+    sun1 = MP(pos = [2.5e11, 0], m = 2e30, v = np.array([0,17000]), name="S1", dtype=np.float64)
+    sun2 = MP(pos = [-2.5e11, 0], m = 1.5e30, v = np.array([0,-17000]), name="S2", dtype=np.float64)
+    earth1 = MP(pos = [3.5e11, 0], m = 0.4e30, v = np.array([0,-20000]), name="E1", dtype=np.float64)
+    earth2 = MP(pos = [-3.5e11, 0], m = 0.4e30, v = np.array([0,12000]), name="E2", dtype=np.float64)
+
+    double_solar = [sun1, sun2, earth1, earth2]
+    gen_simulation_video(double_solar, 45, 2400, 60, 1000, 90)
+
+    # 模拟四体
+    # stable1 = MP(pos = [1.5e11,1.5e11], m = 1.61e30, v = np.array([-12500,12500]), name="sun1", dtype=np.float64)
+    # stable2 = MP(pos = [-1.5e11,1.5e11], m = 1.61e30, v = np.array([-12500,-12500]), name="sun2", dtype=np.float64)
+    # stable3 = MP(pos = [-1.5e11,-1.5e11], m = 1.61e30, v = np.array([12500,-12500]), name="sun3", dtype=np.float64)
+    # stable4 = MP(pos = [1.5e11,-1.5e11], m = 1.61e30, v = np.array([12500,12500]), name="sun3", dtype=np.float64)
+    # non_stable = [stable1, stable2, stable3, stable4]
+    # gen_simulation_video(non_stable, 9, 12000, 60, 1000, 120)
 
     # # 模拟20体
-    plants = [MP(pos = [(np.random.rand() - 0.5) * 3e11, (np.random.rand() - 0.5) * 3e11], m = 0.4e30 + np.random.rand() * 1.6e30, v = np.array([(np.random.rand() - 0.5) * 20000, (np.random.rand() - 0.5) * 20000]), name=f"P{i}",dtype=np.float64) for i in range(8)]
-    gen_simulation_video(plants, 30, 1200, 60, 400, 90)
+    # plants = [MP(pos = [(np.random.rand() - 0.5) * 3e11, (np.random.rand() - 0.5) * 3e11], m = 0.4e30 + np.random.rand() * 1.6e30, v = np.array([(np.random.rand() - 0.5) * 20000, (np.random.rand() - 0.5) * 20000]), name=f"P{i}",dtype=np.float64) for i in range(8)]
+    # gen_simulation_video(plants, 30, 1200, 60, 400, 90)
 
     # 模拟双星系统
     # sun1 = MP(pos = [-2e11,0.5e11], m = 1.5e30, v = np.array([10000,0]), name="sun", dtype=np.float64)
