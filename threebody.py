@@ -294,7 +294,7 @@ class MultiBody:
         video_witer.release()
         print("写入完成")
 
-def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval:int = 3600, video_fps:int = 30, max_tail:int = 1000, video_sec:int = 30, total_frames_cover_sec:int = None, auto_continue:bool = True):
+def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval:int = 3600, video_fps:int = 30, max_tail:int = 1000, video_sec:int = 30, total_frames_cover_sec:int = None, auto_continue:bool = True, auto_start:bool = False):
     sub_dir = datetime.now().strftime("%m_%d_%H%M%S")
     total_frames = video_sec * video_fps
     if total_frames_cover_sec is not None:
@@ -303,9 +303,11 @@ def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval
 
     virtual_days = calc_step_s * frame_steps_interval * total_frames // 86400
 
-    simulation_info = f"准备生成 {len(mps)} 体运动模拟动画，计算步长 {calc_step_s} 秒, 每帧 {frame_steps_interval} 步， 视频帧率: {video_fps} fps, 拖尾长度:{max_tail} 帧, 视频时长:{video_sec}秒, 每秒相当时长:{calc_step_s * frame_steps_interval * video_fps / 86400}天, 模拟相当时长:{virtual_days}天，存储在文件夹:{sub_dir}。是否继续？(y/n)"
+    simulation_info = f"准备生成 {len(mps)} 体运动模拟动画，计算步长 {calc_step_s} 秒, 每帧 {frame_steps_interval} 步， 视频帧率: {video_fps} fps, 拖尾长度:{max_tail} 帧, 视频时长:{video_sec}秒, 每秒相当时长:{calc_step_s * frame_steps_interval * video_fps / 86400}天, 模拟相当时长:{virtual_days}天，存储在文件夹:{sub_dir}。"
+    print(simulation_info)
 
-    ask_continue = input(simulation_info).strip().lower()
+    if auto_start == False:
+        ask_continue = input("是否继续？(y/n)").strip().lower()
     if ask_continue != "y":
         sys.exit(0)
 
