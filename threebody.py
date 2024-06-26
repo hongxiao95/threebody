@@ -308,8 +308,8 @@ def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval
 
     if auto_start == False:
         ask_continue = input("是否继续？(y/n)").strip().lower()
-    if ask_continue != "y":
-        sys.exit(0)
+        if ask_continue != "y":
+            sys.exit(0)
 
     system = MultiBody(mps, calc_step_s, frame_steps_interval, total_frames, sub_dir=sub_dir)
     go_calc = True
