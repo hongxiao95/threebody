@@ -349,9 +349,10 @@ def main():
     sun1 = MP(pos = [2.5e11, 0], m = 2e30, v = np.array([0,17000]), name="S1", dtype=np.float64)
     sun2 = MP(pos = [-2.5e11, 0], m = 1.5e30, v = np.array([0,-17000]), name="S2", dtype=np.float64)
     earth1 = MP(pos = [3.5e11, 0], m = 0.4e30, v = np.array([0,-20000]), name="E1", dtype=np.float64)
-    earth2 = MP(pos = [-3.5e11, 0], m = 0.4e30, v = np.array([0,12000]), name="E2", dtype=np.float64)
+    earth2 = MP(pos = [-4e11, 0], m = 0.4e30, v = np.array([0,15000]), name="E2", dtype=np.float64)
+    earth3 = MP(pos = [-2.5e11, 0.5e11], m = 0.3e30, v = np.array([-35000,-17000]), name="E3", dtype=np.float64)
 
-    double_solar = [sun1, sun2, earth1, earth2]
+    double_solar = [sun1, sun2, earth1, earth2, earth3]
     gen_simulation_video(double_solar, 45, 2400, 60, 1000, 90)
 
     # 模拟四体
