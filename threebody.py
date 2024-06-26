@@ -255,19 +255,22 @@ class MultiBody:
                 # 时间
                 text_pos = (line_st[0], line_st[1] + int(height * 0.05))
                 # cv2.putText(current_img, f"Day {day}, {hour:02}:{minutes:02}:{sec:02}", text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, color=(0,255,255), thickness=2)
-                chn_font_size = int(width * 0.02)
+                # chn_font_size = int(width * 0.02)
                 # current_img = self.__put_text_chinese(current_img, f"Day {day}, {hour:02}:{minutes:02}:{sec:02}  推演步长:{self.dlt_t} 秒, 推演总时长 {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} 天", pos=text_pos, color=(0,255,255), font_size=chn_font_size)
-                cv2.putText(current_img, f"Day {day}, {hour:02}:{minutes:02}:{sec:02}  Simulation Step:{self.dlt_t} sec, Total Simulation Time: {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} day", text_pos, eng_font, 1, color = rate_color, thickness = 2)
+                simu_info_text = f"Day {day}, {hour:02}:{minutes:02}:{sec:02}  Simulation Step:{self.dlt_t} sec, Total Simulation Time: {int(self.history_count / (86400 /(self.dlt_t * self.iter_round)))} day"
+                cv2.putText(current_img, simu_info_text, text_pos, eng_font, 1, color = rate_color, thickness = 2)
+                # 一个scale对应的像素高度
+                font_height = cv2.getTextSize(simu_info_text, eng_font, 1, 1)[0][1]
 
-                text_pos = (text_pos[0], text_pos[1] + chn_font_size)
+                text_pos = (text_pos[0], text_pos[1] + font_height)
 
                 # 星球信息，首先计算剩余行高，平均除以星球数，计算当前星球所在的行
-                remain_height = int((height - text_pos[1]) * 0.8)
+                remain_height = int(height - text_pos[1])
                 each_height = remain_height // len(self.mps)
                 text_pos = (text_pos[0], text_pos[1] + each_height * (j + 1))
                 # 一个scale对应的像素数
                 font_rate = cv2.getTextSize("mNgP", eng_font, 1, 1)[0][1]
-                font_size = (each_height / font_rate) * 0.5
+                font_size = (each_height / font_rate) * 0.6
 
                 p_info_text = f"Name: {current_mp.name}, M: {current_mp.m:.2e} Kg, Pos: ({self.historys[j][i][0]:.2e}, {self.historys[j][i][1]:.2e}) m, V: ({self.v_history[j][i][0]:.2}, {self.v_history[j][i][1]:.2}) m/s"
 
@@ -291,7 +294,7 @@ class MultiBody:
         video_witer.release()
         print("写入完成")
 
-def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval:int = 3600, video_fps:int = 30, max_tail:int = 1000, video_sec:int = 30, total_frames_cover_sec:int = None):
+def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval:int = 3600, video_fps:int = 30, max_tail:int = 1000, video_sec:int = 30, total_frames_cover_sec:int = None, auto_continue:bool = True):
     sub_dir = datetime.now().strftime("%m_%d_%H%M%S")
     total_frames = video_sec * video_fps
     if total_frames_cover_sec is not None:
@@ -320,7 +323,9 @@ def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval
         end = time.time()
         print(f"\ncalc use {end - st}s")
 
-        system.gen_video(f"threebody_{video_no}", max_tail=max_tail, fps=video_fps)
+        system.gen_video(f"threebody_{video_no}", max_tail=max_tail, fps=video_fps, padding=0.25)
+        if auto_continue == False:
+            break
         try:
             go_calc = inputimeout.inputimeout(("go? (y/n)"), 2).lower().strip() == "y"
         except inputimeout.TimeoutOccurred:
@@ -349,11 +354,26 @@ def main():
     sun1 = MP(pos = [2.5e11, 0], m = 2e30, v = np.array([0,17000]), name="S1", dtype=np.float64)
     sun2 = MP(pos = [-2.5e11, 0], m = 1.5e30, v = np.array([0,-17000]), name="S2", dtype=np.float64)
     earth1 = MP(pos = [3.5e11, 0], m = 0.4e30, v = np.array([0,-20000]), name="E1", dtype=np.float64)
-    earth2 = MP(pos = [-4e11, 0], m = 0.4e30, v = np.array([0,15000]), name="E2", dtype=np.float64)
-    earth3 = MP(pos = [-2.5e11, 0.5e11], m = 0.3e30, v = np.array([-35000,-17000]), name="E3", dtype=np.float64)
+    earth2 = MP(pos = [-4.5e11, 0], m = 0.4e30, v = np.array([0,14000]), name="E2", dtype=np.float64)
+    earth3 = MP(pos = [-2.5e11, 0.5e11], m = 0.5e30, v = np.array([-35000,-17000]), name="E3", dtype=np.float64)
 
     double_solar = [sun1, sun2, earth1, earth2, earth3]
-    gen_simulation_video(double_solar, 45, 2400, 60, 1000, 90)
+    
+    simu_index = 1
+    while True:
+        using_solar = [MP(np.array(planet.pos), planet.m, planet.v, planet.name, dtype=planet.dtype) for planet in double_solar]
+        changed = False
+        for i in range(len(using_solar)):
+            if np.random.rand() > 0.7:
+                change_attr = np.random.randint(0, 3)
+                change_factor = (0.8 + np.random.rand() * 0.4)
+                using_solar[i] = MP(using_solar[i].pos * (change_factor if change_attr == 0 else 1), using_solar[i].m * (change_factor if change_attr == 1 else 1), using_solar[i].v * (change_factor if change_attr == 2 else 1), using_solar[i].name + "_Edited", dtype=using_solar[i].dtype)
+                print(f"iter {simu_index}: planet {using_solar[i].name} changed, attr{change_attr} with factor {change_factor}")
+                changed = True
+        if not changed:
+            continue
+        gen_simulation_video(double_solar, 45, 2400, 60, 1000, 120)
+        simu_index += 1
 
     # 模拟四体
     # stable1 = MP(pos = [1.5e11,1.5e11], m = 1.61e30, v = np.array([-12500,12500]), name="sun1", dtype=np.float64)
