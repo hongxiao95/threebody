@@ -20,6 +20,7 @@ class MP:
         self.dtype = dtype
         self.pos, self.m, self.v, self.name, self.a = np.array(pos, dtype=self.dtype), self.dtype(m), np.copy(v).astype(self.dtype), name, np.copy(a).astype(self.dtype)
         self.ori_pos, self.ori_m, self.ori_v = self.pos.copy(), self.m.copy(), self.v.copy()
+        self.lorentz = self.calc_lorentz()
 
     def _clear_a(self):
         self.a = np.zeros(2, dtype=self.dtype)
@@ -29,9 +30,17 @@ class MP:
 
     
     @staticmethod
-    @numba.njit(numba.float64[:](numba.float64[:], numba.float64, numba.float64, numba.float64[:], numba.float64[:]))
-    def __calc_a(olda, m, distance, otherpos, selfpos):
-        return olda + (m / np.power(distance, 3) * (otherpos - selfpos))
+    @numba.njit(numba.float64[:](numba.float64[:], numba.float64, numba.float64, numba.float64[:], numba.float64[:], numba.float64))
+    def __calc_a(olda, m, distance, otherpos, selfpos, selflorentz):
+        return olda + (m / np.power(distance, 3) / selflorentz * (otherpos - selfpos))
+    
+    @staticmethod
+    @numba.njit(numba.float64(numba.float64[:]))
+    def __calc_lorentz(v):
+        return 1 / np.sqrt(1 - (v[0] ** 2 + v[1] ** 2)/(CONSTANTS.c ** 2))
+
+    def calc_lorentz(self):
+        return self.__calc_lorentz(self.v)
 
     def calc_a(self, mps:list["MP"]):
         '''
@@ -43,7 +52,11 @@ class MP:
                 continue
             distance = self._clac_distance(mp)
             # self.a += CONSTANTS.G * mp.m / np.power(distance, 3) * (mp.pos - self.pos)
-            self.a = self.__calc_a(self.a, mp.m, distance, mp.pos, self.pos)
+            # self.a = self.__calc_a(self.a, mp.m, distance, mp.pos, self.pos)
+
+            # 考虑相对论，对方质量需要乘以对方洛伦兹因子，我方加速度需要除以我方洛伦兹因子
+            self.a = self.__calc_a(self.a, mp.m * mp.lorentz, distance, mp.pos, self.pos, self.lorentz)
+
         self.a *= CONSTANTS.G
 
     @staticmethod
@@ -64,6 +77,7 @@ class MP:
         res = self.__update_move(self.pos, self.v, dlt_t, self.a)
         self.v = res[0]
         self.pos = res[1]
+        self.lorentz = self.calc_lorentz()
 
 class MultiBody:
     '''
@@ -318,11 +332,11 @@ def main():
     # stable2 = MP(pos = [8.66e10,0], m = 1.61e30, v = np.array([-12500,-21650]), name="earth", dtype=np.float64)
     # stable3 = MP(pos = [-8.66e10,0], m = 1.61e30, v = np.array([-12500,21650]), name="moon", dtype=np.float64)
     # non_stable = [stable1, stable2, stable3]
-    # gen_simulation_video(non_stable, 90, 1200, 60, 1000, 60)
+    # gen_simulation_video(non_stable, 90, 1200, 60, 1000, 90)
 
-    # 模拟20体
+    # # 模拟20体
     plants = [MP(pos = [(np.random.rand() - 0.5) * 3e11, (np.random.rand() - 0.5) * 3e11], m = 0.4e30 + np.random.rand() * 1.6e30, v = np.array([(np.random.rand() - 0.5) * 20000, (np.random.rand() - 0.5) * 20000]), name=f"P{i}",dtype=np.float64) for i in range(8)]
-    gen_simulation_video(plants, 60, 1200, 60, 300, 15)
+    gen_simulation_video(plants, 30, 1200, 60, 400, 90)
 
     # 模拟双星系统
     # sun1 = MP(pos = [-2e11,0.5e11], m = 1.5e30, v = np.array([10000,0]), name="sun", dtype=np.float64)
