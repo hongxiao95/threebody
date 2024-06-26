@@ -374,7 +374,7 @@ def main():
                 changed = True
         if not changed:
             continue
-        gen_simulation_video(double_solar, 45, 2400, 60, 1000, 120, auto_continue=False)
+        gen_simulation_video(double_solar, 45, 2400, 60, 1000, 120, auto_continue=False, auto_start=True)
         simu_index += 1
 
     # 模拟四体
