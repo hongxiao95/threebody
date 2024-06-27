@@ -363,7 +363,7 @@ def main():
     
     simu_index = 1
     while True:
-        using_solar = [MP(np.array(planet.pos), planet.m, planet.v, planet.name, dtype=planet.dtype) for planet in double_solar]
+        using_solar = [MP(np.array(planet.pos), planet.m.copy(), planet.v.copy(), planet.name, dtype=planet.dtype) for planet in double_solar]
         changed = False
         for i in range(len(using_solar)):
             if np.random.rand() > 0.7:
@@ -374,7 +374,7 @@ def main():
                 changed = True
         if not changed:
             continue
-        gen_simulation_video(double_solar, 45, 2400, 60, 1000, 120, auto_continue=False, auto_start=True)
+        gen_simulation_video(using_solar, 45, 2400, 60, 1000, 120, auto_continue=False, auto_start=True)
         simu_index += 1
 
     # 模拟四体
