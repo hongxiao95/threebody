@@ -366,9 +366,9 @@ def main():
         using_solar = [MP(np.array(planet.pos), planet.m.copy(), planet.v.copy(), planet.name, dtype=planet.dtype) for planet in double_solar]
         changed = False
         for i in range(len(using_solar)):
-            if np.random.rand() > 0.7:
+            if np.random.rand() > 0.4:
                 change_attr = np.random.randint(0, 3)
-                change_factor = (0.8 + np.random.rand() * 0.4)
+                change_factor = (0.7 + np.random.rand() * 0.6)
                 using_solar[i] = MP(using_solar[i].pos * (change_factor if change_attr == 0 else 1), using_solar[i].m * (change_factor if change_attr == 1 else 1), using_solar[i].v * (change_factor if change_attr == 2 else 1), using_solar[i].name + "_Edited", dtype=using_solar[i].dtype)
                 print(f"iter {simu_index}: planet {using_solar[i].name} changed, attr{change_attr} with factor {change_factor}")
                 changed = True
