@@ -136,7 +136,7 @@ class MultiBody:
         return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
     def gen_video(self, file_name:str="threebody", width:int=1920, height:int=1080, max_tail:int=300, padding:float = 0.3, fps:int=30):
-        max_tail = max_tail if self.history_count > max_tail * 2 else self.history_count // 2 - 1
+        # max_tail = max_tail if self.history_count > max_tail * 2 else self.history_count // 2 - 1
         print("\n")
         if os.path.exists(self.whole_path) == False:
             os.makedirs(self.whole_path)
@@ -283,7 +283,7 @@ class MultiBody:
                 # 星球信息，首先计算剩余行高，平均除以星球数，计算当前星球所在的行
                 remain_height = int(height - text_pos[1])
                 each_height = remain_height // len(self.mps)
-                text_pos = (text_pos[0], text_pos[1] + each_height * (j + 1))
+                text_pos = (text_pos[0], text_pos[1] + each_height * j)
                 # 一个scale对应的像素数
                 font_rate = cv2.getTextSize("mNgP", eng_font, 1, 1)[0][1]
                 font_size = (each_height / font_rate) * 0.6
@@ -293,13 +293,14 @@ class MultiBody:
                 cv2.putText(current_img, p_info_text, text_pos, eng_font, font_size, color=self.colors[j], thickness=2)
 
                 # 绘制拖影
-                tail_i = max(0, i - max_tail) if self.current_round <= self.history_count else i - max_tail
+                # tail_i = max(0, i - max_tail) if self.current_round <= self.history_count else i - max_tail
+                tail_i = max(0, i - max_tail)
                 tail_color_base = [min(rgb * 1.2, 255) for rgb in self.colors[j % len(self.colors)]]
                 while tail_i < i:
-                    # 处理循环索引
-                    using_tail_i = tail_i if tail_i >=0 else self.history_count + tail_i
+                    # 处理循环索引 暂时不做
+                    # using_tail_i = tail_i if tail_i >=0 else self.history_count + tail_i
                     # 计算该拖影在不在画面内，不在就不画，节省性能
-                    canvas_pos = self._calc_canvas_pos(self.historys[j][using_tail_i], ori_opoint, div_times, width, height)
+                    canvas_pos = self._calc_canvas_pos(self.historys[j][tail_i], ori_opoint, div_times, width, height)
                     if self._in_canvas(canvas_pos, width, height):
                         cv2.circle(current_img, canvas_pos, radius=2, color=[int(rgb *  (1 - (i - tail_i) / max_tail)) for rgb in tail_color_base], thickness=-1)
                     tail_i += 1
