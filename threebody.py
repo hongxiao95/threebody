@@ -94,9 +94,12 @@ class MultiBody:
         self.historys = [np.zeros((self.history_count, 2), dtype=np.float64) for j in range(len(self.mps))]
         self.v_history = [np.zeros((self.history_count, 2), dtype=np.float64) for j in range(len(self.mps))]
         self.current_round = 0
+        # 画面在扩大还是收缩
+        self.canvas_expanding = False
         for i in range(len(self.mps)):
             self.historys[i][0] = np.copy(self.mps[i].pos)
             self.v_history[i][0] = np.copy(self.mps[i].v)
+        self.last_div_times = 0
 
     def calc_round(self):
         self.current_round += 1
@@ -187,6 +190,10 @@ class MultiBody:
         # print(f"crossrate :max:{max_cross_rate}, min:{min_cross_rate}, mid:{mid_cross_rate}")
         # input()
         for i in range(self.history_count):
+            # 如果是第二个及以上的视频，先采用上次计算的倍数
+            if i == 0 and self.current_round > self.history_count:
+                last_div_times = self.last_div_times
+
             print(f"正在写入{full_file_name}第{i + 1} / {self.history_count}帧 \r", end="")
             if (buffer_index:=i % img_buffer_size) == 0:
                 tpl_imgs = [tpl_img.copy() for __ in range(img_buffer_size)]
@@ -234,7 +241,14 @@ class MultiBody:
                 if (x_div_times:=int(x_cross / (width * using_cross_rate))) > div_times:
                     # 如果按横坐标缩放，代表的范围更广，应采纳横坐标缩放倍率，反之亦然
                     div_times = x_div_times
+                self.canvas_expanding = div_times > last_div_times
                 last_div_times = div_times
+            else:
+                self.canvas_expanding = False
+            
+            # 每个视频计算完成，记录本次末尾倍数用于衔接
+            if i == self.history_count - 1:
+                self.last_div_times = div_times
             
             #计算当前点的画布坐标，并绘制当前点
             for j, current_mp in enumerate(self.mps):
@@ -277,11 +291,13 @@ class MultiBody:
                 cv2.putText(current_img, p_info_text, text_pos, eng_font, font_size, color=self.colors[j], thickness=2)
 
                 # 绘制拖影
-                tail_i = max(0, i - max_tail)
+                tail_i = max(0, i - max_tail) if self.current_round <= self.history_count else i - max_tail
                 tail_color_base = [min(rgb * 1.2, 255) for rgb in self.colors[j % len(self.colors)]]
                 while tail_i < i:
+                    # 处理循环索引
+                    using_tail_i = tail_i if tail_i >=0 else self.history_count + tail_i
                     # 计算该拖影在不在画面内，不在就不画，节省性能
-                    canvas_pos = self._calc_canvas_pos(self.historys[j][tail_i], ori_opoint, div_times, width, height)
+                    canvas_pos = self._calc_canvas_pos(self.historys[j][using_tail_i], ori_opoint, div_times, width, height)
                     if self._in_canvas(canvas_pos, width, height):
                         cv2.circle(current_img, canvas_pos, radius=2, color=[int(rgb *  (1 - (i - tail_i) / max_tail)) for rgb in tail_color_base], thickness=-1)
                     tail_i += 1
@@ -327,11 +343,14 @@ def gen_simulation_video(mps:list[MP], calc_step_s:int = 2, frame_steps_interval
 
         system.gen_video(f"threebody_{video_no}", max_tail=max_tail, fps=video_fps, padding=0.25)
         if auto_continue == False:
-            break
-        try:
-            go_calc = inputimeout.inputimeout(("go? (y/n)"), 2).lower().strip() == "y"
-        except inputimeout.TimeoutOccurred:
-            go_calc = True
+            if system.canvas_expanding == True:
+                break
+            print(f"Continue Gen because of unexpanding canvas")
+        else:
+            try:
+                go_calc = inputimeout.inputimeout((f"the canvas expanding:{system.canvas_expanding}, go? (y/n)"), 2).lower().strip() == "y"
+            except inputimeout.TimeoutOccurred:
+                go_calc = True
         is_first  =False
         video_no += 1
     pass
