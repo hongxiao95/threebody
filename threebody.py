@@ -136,6 +136,7 @@ class MultiBody:
         return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
     def gen_video(self, file_name:str="threebody", width:int=1920, height:int=1080, max_tail:int=300, padding:float = 0.3, fps:int=30):
+        max_tail = max_tail if self.history_count > max_tail * 2 else self.history_count // 2 - 1
         print("\n")
         if os.path.exists(self.whole_path) == False:
             os.makedirs(self.whole_path)
@@ -241,7 +242,8 @@ class MultiBody:
                 if (x_div_times:=int(x_cross / (width * using_cross_rate))) > div_times:
                     # 如果按横坐标缩放，代表的范围更广，应采纳横坐标缩放倍率，反之亦然
                     div_times = x_div_times
-                self.canvas_expanding = div_times > last_div_times
+                if last_div_times is not None:
+                    self.canvas_expanding = div_times > last_div_times
                 last_div_times = div_times
             else:
                 self.canvas_expanding = False
